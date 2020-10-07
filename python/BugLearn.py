@@ -1,22 +1,19 @@
 '''
 Created on Jun 23, 2017
 
-@author: Michael Pradel
-
-Last Changed on Apr 28, 2020
-
-@by: Sabine Zach
+@author: Michael Pradel, Sabine Zach
 '''
 
 import sys
 import json
 from os.path import join
 from os import getcwd
-from collections import Counter, namedtuple
+from collections import namedtuple
 import math
-from keras.models import Sequential, load_model
-from keras.layers.core import Dense, Dropout
-import random
+
+from tensorflow.python.keras.models import Sequential
+from tensorflow.python.keras.layers.core import Dense, Dropout
+
 import time
 import numpy as np
 import Util
@@ -25,11 +22,7 @@ import LearningDataBinOperator
 import LearningDataSwappedBinOperands
 import LearningDataIncorrectBinaryOperand
 import LearningDataIncorrectAssignment
-import LearningDataMissingArg
 
-name_embedding_size = 200
-file_name_embedding_size = 50
-type_embedding_size = 5
 
 Anomaly = namedtuple("Anomaly", ["message", "score"])
 
@@ -55,13 +48,13 @@ def parse_data_paths(args):
                 sys.exit(0)
     return [training_data_paths, eval_data_paths]
 
-def prepare_xy_pairs(data_paths, learning_data):
+def prepare_xy_pairs(gen_negatives, data_paths, learning_data):
     xs = []
     ys = []
     code_pieces = [] # keep calls in addition to encoding as x,y pairs (to report detected anomalies)
     
     for code_piece in Util.DataReader(data_paths):
-        learning_data.code_to_xy_pairs(code_piece, xs, ys, name_to_vector, type_to_vector, node_type_to_vector, code_pieces)
+        learning_data.code_to_xy_pairs(gen_negatives, code_piece, xs, ys, name_to_vector, type_to_vector, node_type_to_vector, code_pieces)
     x_length = len(xs[0])
     
     print("Stats: " + str(learning_data.stats))
@@ -88,7 +81,7 @@ def sample_xy_pairs(xs, ys, number_buggy):
 
 if __name__ == '__main__':
     # arguments (for learning new model): what --learn <name to vector file> <type to vector file> <AST node type to vector file> --trainingData <list of call data files> --validationData <list of call data files>
-    #   what is one of: SwappedArgs, BinOperator, SwappedBinOperands, IncorrectBinaryOperand, IncorrectAssignment
+    #   what is one of: SwappedArgs, BinOperator, SwappedBinOperands, IncorrectBinaryOperand, IncorrectAssignment, MissingArg
     print("BugLearn started with " + str(sys.argv))
     time_start = time.time()
     what = sys.argv[1]
@@ -118,9 +111,11 @@ if __name__ == '__main__':
     elif what == "IncorrectBinaryOperand":
         learning_data = LearningDataIncorrectBinaryOperand.LearningData()
     elif what == "IncorrectAssignment":
-        learning_data = LearningDataIncorrectAssignment.LearningData()
-    elif what == "MissingArg":
-        learning_data = LearningDataMissingArg.LearningData()
+       learning_data = LearningDataIncorrectAssignment.LearningData()
+    ##elif what == "MissingArg":
+    ##    learning_data = LearningDataMissingArg.LearningData()
+    ##not yet implemented
+
     else:
         print("Incorrect argument for 'what'")
         sys.exit(1)
@@ -128,10 +123,10 @@ if __name__ == '__main__':
     print("Statistics on training data:")
     learning_data.pre_scan(training_data_paths, validation_data_paths)
     
-    # prepare x,y pairs for learning
+    # prepare x,y pairs for learning without negative examples
     print("Preparing xy pairs for training data:")
     learning_data.resetStats()
-    xs_training, ys_training, _ = prepare_xy_pairs(training_data_paths, learning_data)
+    xs_training, ys_training, _ = prepare_xy_pairs(True, training_data_paths, learning_data)
     x_length = len(xs_training[0])
     print("Training examples   : " + str(len(xs_training)))
     print(learning_data.stats)
